@@ -15,6 +15,7 @@ load(
     "tf_copts",
     "tf_cuda_library",
     "tf_openmp_copts",
+    "tf_openmp_deps",
     "tf_openmp_lopts",
 )
 load("//tensorflow:tensorflow.default.bzl", "cc_header_only_library", "filegroup", "tf_cuda_cc_test")
@@ -1642,8 +1643,9 @@ cc_library(
         "//tensorflow/core:framework",
         "//tensorflow/core:lib",
         "//tensorflow/core:lib_internal",
+        "@com_google_absl//absl/functional:any_invocable",
         "@local_xla//xla/tsl/platform:env",
-    ],
+    ] + tf_openmp_deps(),
 )
 
 cc_library(
@@ -2010,9 +2012,10 @@ cc_library(
         "//tensorflow/core:lib_internal",
         "//tensorflow/core:protos_all_cc",
         "@com_google_absl//absl/base",
+        "@com_google_absl//absl/container:flat_hash_set",
     ] + if_mkl([":mkl_cpu_allocator"]) + if_mkl_ml([
         "@local_xla//xla/tsl/mkl:intel_binary_blob",
-    ]),
+    ]) + tf_openmp_deps(),
 )
 
 cc_library(
