@@ -141,6 +141,9 @@ class RpcHelper {
   ResponseFuture<LoadedExecutableCostAnalysisResponse>
   LoadedExecutableCostAnalysis(
       std::unique_ptr<LoadedExecutableCostAnalysisRequest> req);
+  ResponseFuture<LoadedExecutableMpmdCostAnalysisResponse>
+  LoadedExecutableMpmdCostAnalysis(
+      std::unique_ptr<LoadedExecutableMpmdCostAnalysisRequest> req);
   ResponseFuture<LoadedExecutableHumanReadableProgramTextResponse>
   LoadedExecutableHumanReadableProgramText(
       std::unique_ptr<LoadedExecutableHumanReadableProgramTextRequest> req);

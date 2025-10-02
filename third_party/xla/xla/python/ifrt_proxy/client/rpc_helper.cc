@@ -342,6 +342,7 @@ RPC(DeleteArray, delete_array);
 RPC(Compile, compile);
 RPC(LoadedExecutableMetadata, loaded_executable_metadata);
 RPC(LoadedExecutableCostAnalysis, loaded_executable_cost_analysis);
+RPC(LoadedExecutableMpmdCostAnalysis, loaded_executable_mpmd_cost_analysis);
 RPC(LoadedExecutableHumanReadableProgramText,
     loaded_executable_human_readable_program_text);
 RPC(LoadedExecutableExecute, loaded_executable_execute);
