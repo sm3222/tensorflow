@@ -33,6 +33,7 @@ limitations under the License.
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_replace.h"
@@ -499,7 +500,7 @@ absl::StatusOr<Autotuner::ConfigResult> Autotuner::PickBestConfig(
         std::remove_if(results.begin(), results.end(),
                        [](const ConfigResult& result) {
                          return result.config.codegen_backend->name() ==
-                                "cublas";
+                                "Cublas_fission";
                        }),
         results.end());
   }

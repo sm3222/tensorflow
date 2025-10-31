@@ -33,6 +33,7 @@ cc_library(
         "//tensorflow/c:env",
         "//tensorflow/c:tf_status",
         "//tensorflow/c/experimental/filesystem:filesystem_interface",
+        "//third_party/cloud_cpp/google/cloud:google_cloud_cpp_common",
         "@com_github_googlecloudplatform_google_cloud_cpp//:storage_client",
         "@com_github_googlecloudplatform_google_cloud_cpp//google/cloud:google_cloud_cpp_common",
         "@com_google_absl//absl/base:core_headers",
