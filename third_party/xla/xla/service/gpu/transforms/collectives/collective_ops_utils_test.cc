@@ -15,6 +15,8 @@ limitations under the License.
 
 #include "xla/service/gpu/transforms/collectives/collective_ops_utils.h"
 
+#include <optional>
+
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include "absl/status/status_matchers.h"
@@ -481,4 +483,211 @@ TEST_F(CommunicationTypeTest, DetectsRailAlignedMultiPartition) {
 }
 
 }  // namespace
+
+TEST_F(CommunicationTypeTest,
+       CollectivePermutePropertyIntraPartitionEdge1NotMutual) {
+  absl::string_view kHlo = R"(
+    HloModule m, num_partitions=8
+
+    ENTRY e {
+      p = f32[128] parameter(0)
+      ROOT _ = f32[128] collective-permute(p),
+        source_target_pairs={{0,1},{2,3},{4,5},{6,7}}
+    }
+  )";
+
+  TF_ASSERT_OK_AND_ASSIGN(auto module, ParseAndReturnUnverifiedModule(kHlo));
+
+  HloCollectivePermuteInstruction* instr =
+      Cast<HloCollectivePermuteInstruction>(
+          module->entry_computation()->root_instruction());
+  std::optional<CollectivePermuteProperty> property =
+      GetCollectivePermuteProperty(*instr, /*num_devices_per_partition=*/8);
+  ASSERT_TRUE(property.has_value());
+  EXPECT_FALSE(property->has_inter_partition);
+  EXPECT_EQ(property->num_device_edge, 1);
+  EXPECT_FALSE(property->is_all_mutual);
+  EXPECT_EQ(
+      property->permute_pairs_by_type[PermuteType::kIntraPartition].size(), 4);
+  EXPECT_FALSE(
+      property->permute_pairs_by_type.contains(PermuteType::kInterPartition));
+  EXPECT_EQ(GetCollectivePermuteCostModelType(*property),
+            CollectivePermuteCostModelType::kIntraPartitionOneWay);
+}
+
+TEST_F(CommunicationTypeTest,
+       CollectivePermutePropertyIntraPartitionEdge2Mutual) {
+  absl::string_view kHlo = R"(
+    HloModule m, num_partitions=4
+
+    ENTRY e {
+      p = f32[128] parameter(0)
+      ROOT _ = f32[128] collective-permute(p),
+        source_target_pairs={{0,1},{1,0},{2,3},{3,2}}
+    }
+  )";
+
+  TF_ASSERT_OK_AND_ASSIGN(auto module, ParseAndReturnUnverifiedModule(kHlo));
+
+  HloCollectivePermuteInstruction* instr =
+      Cast<HloCollectivePermuteInstruction>(
+          module->entry_computation()->root_instruction());
+  std::optional<CollectivePermuteProperty> property =
+      GetCollectivePermuteProperty(*instr, /*num_devices_per_partition=*/8);
+  ASSERT_TRUE(property.has_value());
+  EXPECT_FALSE(property->has_inter_partition);
+  EXPECT_EQ(property->num_device_edge, 2);
+  EXPECT_TRUE(property->is_all_mutual);
+  EXPECT_EQ(
+      property->permute_pairs_by_type[PermuteType::kIntraPartition].size(), 4);
+  EXPECT_FALSE(
+      property->permute_pairs_by_type.contains(PermuteType::kInterPartition));
+  EXPECT_EQ(GetCollectivePermuteCostModelType(*property),
+            CollectivePermuteCostModelType::kIntraPartitionTwoWayAllMutual);
+}
+
+TEST_F(CommunicationTypeTest,
+       CollectivePermutePropertyInterPartitionEdge2Mutual) {
+  absl::string_view kHlo = R"(
+    HloModule m, num_partitions=16
+
+    ENTRY e {
+      p = f32[128] parameter(0)
+      ROOT _ = f32[128] collective-permute(p),
+        source_target_pairs={{0,8},{8,0}}
+    }
+  )";
+
+  TF_ASSERT_OK_AND_ASSIGN(auto module, ParseAndReturnUnverifiedModule(kHlo));
+
+  HloCollectivePermuteInstruction* instr =
+      Cast<HloCollectivePermuteInstruction>(
+          module->entry_computation()->root_instruction());
+  std::optional<CollectivePermuteProperty> property =
+      GetCollectivePermuteProperty(*instr, /*num_devices_per_partition=*/8);
+  ASSERT_TRUE(property.has_value());
+  EXPECT_TRUE(property->has_inter_partition);
+  EXPECT_EQ(property->num_device_edge, 2);
+  EXPECT_TRUE(property->is_all_mutual);
+  EXPECT_EQ(
+      property->permute_pairs_by_type[PermuteType::kInterPartition].size(), 2);
+  EXPECT_FALSE(
+      property->permute_pairs_by_type.contains(PermuteType::kIntraPartition));
+  EXPECT_EQ(GetCollectivePermuteCostModelType(*property),
+            CollectivePermuteCostModelType::kInterPartitionTwoWayAllMutual);
+}
+
+TEST_F(CommunicationTypeTest,
+       CollectivePermutePropertyInterPartitionEdge1NotMutual) {
+  absl::string_view kHlo = R"(
+    HloModule m, num_partitions=16
+
+    ENTRY e {
+      p = f32[128] parameter(0)
+      ROOT _ = f32[128] collective-permute(p),
+        source_target_pairs={{0,8},{1,9}}
+    }
+  )";
+
+  TF_ASSERT_OK_AND_ASSIGN(auto module, ParseAndReturnUnverifiedModule(kHlo));
+
+  HloCollectivePermuteInstruction* instr =
+      Cast<HloCollectivePermuteInstruction>(
+          module->entry_computation()->root_instruction());
+  std::optional<CollectivePermuteProperty> property =
+      GetCollectivePermuteProperty(*instr, /*num_devices_per_partition=*/8);
+  ASSERT_TRUE(property.has_value());
+  EXPECT_TRUE(property->has_inter_partition);
+  EXPECT_EQ(property->num_device_edge, 1);
+  EXPECT_FALSE(property->is_all_mutual);
+  EXPECT_EQ(
+      property->permute_pairs_by_type[PermuteType::kInterPartition].size(), 2);
+  EXPECT_FALSE(
+      property->permute_pairs_by_type.contains(PermuteType::kIntraPartition));
+  EXPECT_EQ(GetCollectivePermuteCostModelType(*property),
+            CollectivePermuteCostModelType::kInterPartitionOneWay);
+}
+
+TEST_F(CommunicationTypeTest,
+       CollectivePermutePropertyIntraPartitionEdge2NotMutual) {
+  absl::string_view kHlo = R"(
+    HloModule m, num_partitions=8
+
+    ENTRY e {
+      p = f32[128] parameter(0)
+      ROOT _ = f32[128] collective-permute(p),
+        source_target_pairs={{0,1},{1,2},{2,0}}
+    }
+  )";
+
+  TF_ASSERT_OK_AND_ASSIGN(auto module, ParseAndReturnUnverifiedModule(kHlo));
+
+  HloCollectivePermuteInstruction* instr =
+      Cast<HloCollectivePermuteInstruction>(
+          module->entry_computation()->root_instruction());
+  std::optional<CollectivePermuteProperty> property =
+      GetCollectivePermuteProperty(*instr, /*num_devices_per_partition=*/8);
+  ASSERT_TRUE(property.has_value());
+  EXPECT_FALSE(property->has_inter_partition);
+  EXPECT_EQ(property->num_device_edge, 2);
+  EXPECT_FALSE(property->is_all_mutual);
+  EXPECT_EQ(
+      property->permute_pairs_by_type[PermuteType::kIntraPartition].size(), 3);
+  EXPECT_FALSE(
+      property->permute_pairs_by_type.contains(PermuteType::kInterPartition));
+  EXPECT_EQ(GetCollectivePermuteCostModelType(*property),
+            CollectivePermuteCostModelType::kIntraPartitionTwoWayHasNonMutual);
+}
+
+TEST_F(CommunicationTypeTest,
+       CollectivePermutePropertyInterPartitionTwoWayHasNonMutual) {
+  absl::string_view kHlo = R"(
+    HloModule m, num_partitions=16
+    ENTRY e {
+      p = f32[128] parameter(0)
+      ROOT _ = f32[128] collective-permute(p),
+        source_target_pairs={{0,8},{1,9},{8,2}}
+    }
+  )";
+
+  TF_ASSERT_OK_AND_ASSIGN(auto module, ParseAndReturnUnverifiedModule(kHlo));
+
+  HloCollectivePermuteInstruction* instr =
+      Cast<HloCollectivePermuteInstruction>(
+          module->entry_computation()->root_instruction());
+  std::optional<CollectivePermuteProperty> property =
+      GetCollectivePermuteProperty(*instr, /*num_devices_per_partition=*/8);
+  ASSERT_TRUE(property.has_value());
+  EXPECT_TRUE(property->has_inter_partition);
+  EXPECT_EQ(property->num_device_edge, 2);
+  EXPECT_FALSE(property->is_all_mutual);
+  EXPECT_EQ(
+      property->permute_pairs_by_type[PermuteType::kInterPartition].size(), 3);
+  EXPECT_FALSE(
+      property->permute_pairs_by_type.contains(PermuteType::kIntraPartition));
+  EXPECT_EQ(GetCollectivePermuteCostModelType(*property),
+            CollectivePermuteCostModelType::kInterPartitionTwoWayHasNonMutual);
+}
+
+TEST_F(CommunicationTypeTest, CollectivePermutePropertyEmptyPairs) {
+  absl::string_view kHlo = R"(
+    HloModule m, num_partitions=8
+
+    ENTRY e {
+      p = f32[128] parameter(0)
+      ROOT _ = f32[128] collective-permute(p),
+        source_target_pairs={}
+    }
+  )";
+
+  TF_ASSERT_OK_AND_ASSIGN(auto module, ParseAndReturnUnverifiedModule(kHlo));
+
+  HloCollectivePermuteInstruction* instr =
+      Cast<HloCollectivePermuteInstruction>(
+          module->entry_computation()->root_instruction());
+  std::optional<CollectivePermuteProperty> property =
+      GetCollectivePermuteProperty(*instr, /*num_devices_per_partition=*/8);
+  EXPECT_FALSE(property.has_value());
+}
+
 }  // namespace xla::gpu

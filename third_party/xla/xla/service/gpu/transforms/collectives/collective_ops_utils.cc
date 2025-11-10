@@ -18,6 +18,8 @@ limitations under the License.
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
+#include <utility>
 #include <vector>
 
 #include "absl/algorithm/container.h"
@@ -135,6 +137,74 @@ bool IsNonWorldLevelCommunication(const CollectiveMetadata& pattern) {
 }
 
 }  // namespace
+
+std::optional<CollectivePermuteProperty> GetCollectivePermuteProperty(
+    const HloCollectivePermuteInstruction& instr,
+    int64_t num_devices_per_partition) {
+  if (instr.source_target_pairs().empty()) {
+    return std::nullopt;
+  }
+
+  CollectivePermuteProperty property;
+  absl::flat_hash_set<int64_t> sources, targets;
+  absl::flat_hash_set<std::pair<int64_t, int64_t>> pairs_set;
+  for (const auto& pair : instr.source_target_pairs()) {
+    pairs_set.insert(pair);
+  }
+
+  property.is_all_mutual = true;
+
+  for (const auto& [source, target] : instr.source_target_pairs()) {
+    sources.insert(source);
+    targets.insert(target);
+
+    PermuteType permute_type = (source / num_devices_per_partition ==
+                                target / num_devices_per_partition)
+                                   ? PermuteType::kIntraPartition
+                                   : PermuteType::kInterPartition;
+
+    if (permute_type == PermuteType::kInterPartition) {
+      property.has_inter_partition = true;
+    }
+
+    property.permute_pairs_by_type[permute_type].push_back(
+        {permute_type, source, target, num_devices_per_partition});
+
+    if (property.is_all_mutual && !pairs_set.contains({target, source})) {
+      property.is_all_mutual = false;
+    }
+  }
+
+  for (int64_t source : sources) {
+    if (targets.contains(source)) {
+      property.num_device_edge = 2;
+      break;
+    }
+  }
+
+  return property;
+}
+
+CollectivePermuteCostModelType GetCollectivePermuteCostModelType(
+    const CollectivePermuteProperty& property) {
+  if (property.has_inter_partition) {
+    if (property.num_device_edge == 2) {
+      return property.is_all_mutual
+                 ? CollectivePermuteCostModelType::kInterPartitionTwoWayAllMutual
+                 : CollectivePermuteCostModelType::
+                       kInterPartitionTwoWayHasNonMutual;
+    }
+    return CollectivePermuteCostModelType::kInterPartitionOneWay;
+  }
+
+  // !property.has_inter_partition
+  if (property.num_device_edge == 2) {
+    return property.is_all_mutual
+               ? CollectivePermuteCostModelType::kIntraPartitionTwoWayAllMutual
+               : CollectivePermuteCostModelType::kIntraPartitionTwoWayHasNonMutual;
+  }
+  return CollectivePermuteCostModelType::kIntraPartitionOneWay;
+}
 
 bool IsGPUSyncCollective(const HloInstruction& instr) {
   auto backend_config = instr.backend_config<GpuBackendConfig>();
