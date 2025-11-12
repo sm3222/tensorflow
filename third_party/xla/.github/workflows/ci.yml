@@ -79,6 +79,12 @@ jobs:
             repo: "jax-ml/jax",
           },
           {
+            pool: "windows-x86-n2-16",
+            container: null,
+            name: "JAX Windows x86 CPU",
+            repo: "jax-ml/jax",
+          },
+          {
             pool: "linux-x86-g2-16-l4-1gpu",
             container: "gcr.io/tensorflow-sigs/build:latest-python3.11",
             name: "JAX Linux x86 GPU L4",
