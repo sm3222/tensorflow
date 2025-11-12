@@ -64,7 +64,6 @@ filegroup(
         "runtime_single_threaded_matmul_f64.cc",
         "runtime_single_threaded_matmul_s32.cc",
         "runtime_single_threaded_matmul_u8.cc",
-        "runtime_topk.cc",
         # Multi-threaded support.
         "runtime_conv2d.cc",
         "runtime_conv3d.cc",
@@ -88,7 +87,6 @@ filegroup(
         "runtime_single_threaded_conv2d.h",
         "runtime_single_threaded_conv3d.h",
         "runtime_single_threaded_matmul.h",
-        "runtime_topk.h",
         # Multi-threaded support.
         "runtime_conv2d.h",
         "runtime_conv3d.h",
@@ -1194,19 +1192,6 @@ cc_library(
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/base:dynamic_annotations",
         "@eigen_archive//:eigen3",
-    ],
-)
-
-cc_library(
-    name = "runtime_topk",
-    srcs = ["runtime_topk.cc"],
-    hdrs = ["runtime_topk.h"],
-    copts = runtime_copts(),
-    visibility = ["//visibility:public"],
-    deps = [
-        "@com_google_absl//absl/base",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/base:dynamic_annotations",
     ],
 )
 
