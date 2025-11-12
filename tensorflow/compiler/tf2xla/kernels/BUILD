@@ -371,7 +371,6 @@ cc_library(
         "@local_xla//xla/hlo/translate:stablehlo",
         "@local_xla//xla/mlir/utils:error_util",
         "@local_xla//xla/mlir/utils:type_util",
-        "@local_xla//xla/mlir_hlo:mhlo_passes",
         "@local_xla//xla/python:refine_polymorphic_shapes",
         "@local_xla//xla/service:hlo_proto_cc",
         "@local_xla//xla/service/spmd/shardy/sdy_round_trip:pipelines",

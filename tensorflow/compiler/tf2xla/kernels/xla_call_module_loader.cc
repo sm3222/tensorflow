@@ -67,7 +67,6 @@ limitations under the License.
 #include "xla/hlo/builder/xla_computation.h"
 #include "xla/hlo/translate/stablehlo.h"
 #include "xla/mlir/utils/type_util.h"
-#include "xla/mlir_hlo/mhlo/transforms/passes.h"
 #include "xla/python/refine_polymorphic_shapes.h"
 #include "xla/service/hlo.pb.h"
 #include "xla/service/spmd/shardy/sdy_round_trip/pipelines.h"
@@ -526,13 +525,7 @@ absl::Status XlaCallModuleLoader::ValidateStaticShapes() {
 absl::Status XlaCallModuleLoader::PrepareStablehloForLowering() {
   mlir::StatusScopedDiagnosticHandler diag_handler(module_->getContext());
 
-  // TODO (b/410057228): Replace MHLO canonicalization with StableHLO.
-  // This code requires MHLO CaseOp canonicalization to remove unreachable
-  // branches, else `tf.call_tf_function` inlining can fail.
   mlir::PassManager pm(module_->getContext());
-  pm.addPass(mlir::mhlo::createStablehloLegalizeToHloPass());
-  pm.addNestedPass<mlir::func::FuncOp>(mlir::createCanonicalizerPass());
-  pm.addPass(mlir::mhlo::createHloLegalizeToStablehloPass());
   if (use_shardy_partitioner_) {
     // We need to export shardings because the lowering path go directly to
     // HLO but not the MLIR to HLO path that invokes SdyRoundTripExport.
@@ -543,7 +536,7 @@ absl::Status XlaCallModuleLoader::PrepareStablehloForLowering() {
 
   if (failed(pm.run(*module_))) {
     return absl::InternalError(
-        absl::StrCat("MHLO->HLO lowering passes failed: ",
+        absl::StrCat("StableHLO->HLO lowering passes failed: ",
                      diag_handler.ConsumeStatus().ToString()));
   }
 
