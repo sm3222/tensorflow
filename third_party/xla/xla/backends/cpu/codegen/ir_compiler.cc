@@ -192,9 +192,9 @@ std::unique_ptr<IrCompiler> IrCompiler::Create(
     llvm::TargetOptions target_options, Options options,
     CompilationHooks hooks) {
   TargetMachineBuilder target_machine_builder =
-      IrCompiler::InferTargetMachineBuilder(std::move(target_options),
-                                            options.opt_level,
-                                            options.max_cpu_feature);
+      IrCompiler::InferTargetMachineBuilder(
+          std::move(target_options), options.opt_level,
+          options.target_machine_options_proto);
 
   return std::make_unique<IrCompiler>(target_machine_builder,
                                       std::move(options), std::move(hooks));
@@ -218,18 +218,9 @@ absl::once_flag initialize_llvm_flag;
 absl::StatusOr<std::unique_ptr<llvm::TargetMachine>>
 IrCompiler::InferTargetMachine(
     const llvm::TargetOptions& target_options, llvm::CodeGenOptLevel opt_level,
-    std::optional<tsl::port::CPUFeature> max_cpu_feature) {
-  // Detect machine attributes for the target CPU.
-  auto result = DetectMachineAttributes(max_cpu_feature);
-  llvm::SmallVector<std::string> attrs(result.features.begin(),
-                                       result.features.end());
-
-  // If `max_cpu_feature` is newer than the host CPU, we should keep the host
-  // CPU name, e.g., we don't want to set the target CPU to Skylake when we are
-  // on a Broadwell host.
-  absl::string_view cpu = result.num_filtered_features
-                              ? CpuTargetFromMaxFeature(*max_cpu_feature)
-                              : absl::string_view(llvm::sys::getHostCPUName());
+    const TargetMachineOptionsProto& target_machine_options_proto) {
+  llvm::SmallVector<std::string> attrs =
+      absl::StrSplit(target_machine_options_proto.features(), ',');
 
   absl::call_once(initialize_llvm_flag, InitializeLLVMTarget);
   std::unique_ptr<llvm::TargetMachine> target_machine(
@@ -237,12 +228,15 @@ IrCompiler::InferTargetMachine(
           .setTargetOptions(target_options)
           .setOptLevel(opt_level)
           .selectTarget(
-              /*TargetTriple=*/llvm::Triple(), /*MArch=*/"",
-              /*MCPU=*/cpu,
+              /*TargetTriple=*/llvm::Triple(
+                  target_machine_options_proto.triple()),
+              /*MArch=*/"",
+              /*MCPU=*/target_machine_options_proto.cpu(),
               /*MAttrs=*/attrs));
 
   if (target_machine == nullptr) {
-    return Internal("Failed to create target machine for CPU %s", cpu);
+    return Internal("Failed to create target machine for CPU %s",
+                    target_machine_options_proto.cpu());
   }
 
   return std::move(target_machine);
@@ -250,9 +244,10 @@ IrCompiler::InferTargetMachine(
 
 IrCompiler::TargetMachineBuilder IrCompiler::InferTargetMachineBuilder(
     const llvm::TargetOptions& target_options, llvm::CodeGenOptLevel opt_level,
-    std::optional<tsl::port::CPUFeature> max_cpu_feature) {
-  return [target_options, opt_level, max_cpu_feature] {
-    return InferTargetMachine(target_options, opt_level, max_cpu_feature);
+    const TargetMachineOptionsProto& target_machine_options_proto) {
+  return [target_options, opt_level, target_machine_options_proto] {
+    return InferTargetMachine(target_options, opt_level,
+                              target_machine_options_proto);
   };
 }
 

@@ -89,9 +89,9 @@ GetCompiledSymbolsFromProto(
 
 absl::StatusOr<std::unique_ptr<FunctionLibrary>> LoadFunctionLibrary(
     const std::vector<FunctionLibrary::Symbol>& compiled_symbols,
-    absl::Span<const ObjFileProto> obj_files, const HloModule* hlo_module) {
+    absl::Span<const ObjFileProto> obj_files, const HloModule* hlo_module,
+    const TargetMachineOptionsProto& target_machine_options_proto) {
   const HloModuleConfig& config = hlo_module->config();
-  const DebugOptions& debug_options = config.debug_options();
 
   auto llvm_options = llvm_ir::ExtractXlaBackendExtraOptions(
       config.debug_options().xla_backend_extra_options());
@@ -102,7 +102,7 @@ absl::StatusOr<std::unique_ptr<FunctionLibrary>> LoadFunctionLibrary(
       IrCompiler::InferTargetMachine(
           std::move(CompilerTargetOptions(hlo_module->config())),
           IrCompiler::GetCodeGenOptLevel(config),
-          CpuFeatureFromString(debug_options.xla_cpu_max_isa())));
+          target_machine_options_proto));
 
   // Definition generator to link with XLA:CPU host runtime symbols.
   ExecutionEngine::DefinitionGenerator definition_generator =
@@ -177,8 +177,7 @@ CpuAotLoader::LoadAotCompilationResult(
       IrCompiler::InferTargetMachine(
           std::move(CompilerTargetOptions(hlo_module->config())),
           IrCompiler::GetCodeGenOptLevel(hlo_module->config()),
-          CpuFeatureFromString(
-              hlo_module->config().debug_options().xla_cpu_max_isa())));
+          aot_result_proto.target_machine_options()));
 
   llvm::Triple triple(aot_result_proto.target_machine_options().triple());
   llvm::Triple expected_triple(target_machine->getTargetTriple());
@@ -230,7 +229,8 @@ CpuAotLoader::LoadAotCompilationResult(
 
   TF_ASSIGN_OR_RETURN(
       auto function_library,
-      LoadFunctionLibrary(compiled_symbols, obj_files, hlo_module.get()));
+      LoadFunctionLibrary(compiled_symbols, obj_files, hlo_module.get(),
+                          aot_result_proto.target_machine_options()));
 
   return CpuAotCompilationResult::FromProto(aot_result_proto,
                                             std::move(function_library));

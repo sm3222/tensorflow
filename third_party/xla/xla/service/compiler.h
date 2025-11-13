@@ -42,6 +42,7 @@ limitations under the License.
 #include "xla/service/buffer_assignment.h"
 #include "xla/service/buffer_value.h"
 #include "xla/service/computation_placer.h"
+#include "xla/service/cpu/executable.pb.h"
 #include "xla/service/executable.h"
 #include "xla/service/hlo_cost_analysis.h"
 #include "xla/service/hlo_module_config.h"
@@ -134,6 +135,11 @@ class Compiler {
   struct TargetConfig {
     explicit TargetConfig(se::StreamExecutor* s);
 
+    // Use for CPU compilation.
+    explicit TargetConfig(
+        cpu::TargetMachineOptionsProto& target_machine_options_proto)
+        : cpu_target_machine_options_proto(target_machine_options_proto) {};
+
     static absl::StatusOr<TargetConfig> FromProto(
         const se::GpuTargetConfigProto& proto);
 
@@ -152,6 +158,11 @@ class Compiler {
     std::string platform_name;
     se::dnn::VersionInfo dnn_version_info;
     std::string device_description_str;
+
+    // Used for CPU compilation. Other fields in the struct are ignored. If not
+    // set, we default to the options inferred from the host machine.
+    std::optional<cpu::TargetMachineOptionsProto>
+        cpu_target_machine_options_proto = std::nullopt;
 
    private:
     TargetConfig() = default;
