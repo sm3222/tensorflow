@@ -44,7 +44,6 @@ cc_library(
         "//xla/stream_executor:device_description",
         "//xla/stream_executor:executor_cache",
         "//xla/stream_executor:platform",
-        "//xla/stream_executor:platform_manager",
         "//xla/stream_executor:stream_executor_h",
         "//xla/stream_executor/platform:initialize",
         "//xla/tsl/platform:errors",
