@@ -36,6 +36,7 @@ limitations under the License.
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
+#include "google/protobuf/text_format.h"
 #include "xla/future.h"
 #include "xla/hlo/builder/xla_computation.h"
 #include "xla/hlo/ir/hlo_module.h"
@@ -892,19 +893,33 @@ absl::StatusOr<DeviceAssignment> HloRunnerPjRt::GetDefaultDeviceAssignment(
 
 namespace {
 std::string MakeFilename(const HloModule& module, const bool run_hlo_passes) {
-  // TODO: b/415841352 - We need a better way to calculate this fingerprint.
-  // Right now, this fingerprint does not take into account the compilation
-  // environment, flags, etc. Since we don't intend to re-use the compilation
-  // artifacts across test runs, this should probably be fine. Each environment
-  // gets a fresh artifact directory. The fingerprint may need to be generated
-  // within PjRt itself since the environment is not easily accessed at this
-  // level of abstraction.
-  const tsl::Fprint128 module_fingerprint =
+  // Fingerprint the HLO module, including its names.
+  tsl::Fprint128 fingerprint =
       tsl::Fingerprint128(module.ToString(HloPrintOptions::Default()));
-  const tsl::Fprint128 run_hlo_passes_fingerprint =
-      tsl::Fingerprint128(run_hlo_passes ? "true" : "false");
-  const tsl::Fprint128 fingerprint =
-      tsl::FingerprintCat128(module_fingerprint, run_hlo_passes_fingerprint);
+  // Fingerprint the run_hlo_passes flag, as this is an input from the test.
+  fingerprint = tsl::FingerprintCat128(
+      fingerprint, tsl::Fingerprint128(run_hlo_passes ? "true" : "false"));
+  // Fingerprint the HLO module's compilation environment, as this is not
+  // captured in the HLO module fingerprint.
+  fingerprint =
+      tsl::FingerprintCat128(fingerprint, tsl::Fingerprint128([&]() {
+                               std::string serialized;
+                               tsl::protobuf::TextFormat::PrintToString(
+                                   module.comp_envs().ToProto(), &serialized);
+                               return serialized;
+                             }()));
+  // Fingerprint the HLO module's debug options, as these are not captured in
+  // the HLO module fingerprint.
+  fingerprint = tsl::FingerprintCat128(
+      fingerprint, tsl::Fingerprint128([&]() {
+        std::string serialized;
+        tsl::protobuf::TextFormat::PrintToString(
+            module.config().debug_options(), &serialized);
+        return serialized;
+      }()));
+
+  // Convert the fingerprint into a hex string and concatenate it with the .bin
+  // extension.
   const std::array<char, 16> fingerprint_bytes =
       tsl::Fprint128ToBytes(fingerprint);
   const absl::string_view fingerprint_bytes_view(fingerprint_bytes.data(),
