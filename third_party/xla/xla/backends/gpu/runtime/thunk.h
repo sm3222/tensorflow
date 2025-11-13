@@ -539,8 +539,12 @@ class Thunk {
 
   // Recursively replaces all nested thunks with the result of applying `fn` to
   // them.
-  virtual void TransformAllNestedThunks(
-      absl::FunctionRef<std::unique_ptr<Thunk>(std::unique_ptr<Thunk>)> fn) {}
+  virtual absl::Status TransformAllNestedThunks(
+      absl::FunctionRef<
+          absl::StatusOr<std::unique_ptr<Thunk>>(std::unique_ptr<Thunk>)>
+          fn) {
+    return absl::OkStatus();
+  }
 
   // A helper function to get the `GpuCollectives*` pointer from the
   // CollectiveExecuteParams.
